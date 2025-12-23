@@ -303,22 +303,28 @@
         let snowLayers = [];  // 多层雪花系统
 
         async function init() {
-            initThree();
-            setupEnvironment();
-            setupLights();
-            createTextures();
-            createParticles();
-            createDust();
-            await createDefaultPhotos();
-            setupPostProcessing();
-            setupEvents();
-            setupKeyboardControls();
+            try {
+                initThree();
+                setupEnvironment();
+                setupLights();
+                createTextures();
+                createParticles();
+                createDust();
+                await createDefaultPhotos();
+                setupPostProcessing();
+                setupEvents();
+                setupKeyboardControls();
 
-            const loader = document.getElementById('loader');
-            loader.style.opacity = 0;
-            setTimeout(() => loader.remove(), 800);
+                const loader = document.getElementById('loader');
+                loader.style.opacity = 0;
+                setTimeout(() => loader.remove(), 800);
 
-            animate();
+                animate();
+            } catch (error) {
+                console.error('初始化失败:', error);
+                document.getElementById('loader').innerHTML =
+                    '<div style="color:#ff6666;text-align:center;">加载失败<br><small>' + error.message + '</small></div>';
+            }
         }
 
         function initThree() {
