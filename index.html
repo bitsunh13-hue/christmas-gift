@@ -268,27 +268,39 @@
                 visualizer.appendChild(bar);
             }
 
-            // 设置 Web Audio API
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 128;
-            analyser.smoothingTimeConstant = 0.8;
+            try {
+                // 设置 Web Audio API
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 128;
+                analyser.smoothingTimeConstant = 0.8;
 
-            const source = audioContext.createMediaElementSource(bgm);
-            source.connect(analyser);
-            analyser.connect(audioContext.destination);
+                const source = audioContext.createMediaElementSource(bgm);
+                source.connect(analyser);
+                analyser.connect(audioContext.destination);
 
-            dataArray = new Uint8Array(analyser.frequencyBinCount);
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-            // 播放音乐
-            bgm.volume = 0.5;
-            bgm.play().then(() => {
-                visualizer.classList.add('visible');
-                updateVisualizer();
-            }).catch(() => {});
+                // 播放音乐
+                bgm.volume = 0.5;
+                bgm.play().then(() => {
+                    visualizer.classList.add('visible');
+                    updateVisualizer();
+                }).catch(() => {
+                    // 播放失败，隐藏可视化
+                    visualizer.style.display = 'none';
+                });
+            } catch (e) {
+                // Web Audio API 失败，只播放音乐不显示可视化
+                console.warn('音频可视化初始化失败:', e);
+                visualizer.style.display = 'none';
+                bgm.volume = 0.5;
+                bgm.play().catch(() => {});
+            }
         }
 
         function updateVisualizer() {
+            if (!analyser || !dataArray) return;
             requestAnimationFrame(updateVisualizer);
 
             analyser.getByteFrequencyData(dataArray);
@@ -318,7 +330,7 @@
     </div>
 
     <!-- 背景音乐 -->
-    <audio id="bgm" loop preload="auto" crossorigin="anonymous">
+    <audio id="bgm" loop preload="auto">
         <source src="music/bgm.mp3" type="audio/mpeg">
     </audio>
 
