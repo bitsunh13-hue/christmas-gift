@@ -82,32 +82,6 @@
             font-size: 11px;
         }
 
-        /* 音乐可视化 */
-        #visualizer {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 20;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            gap: 3px;
-            height: 60px;
-            opacity: 0;
-            transition: opacity 0.5s;
-        }
-        #visualizer.visible {
-            opacity: 1;
-        }
-        .viz-bar {
-            width: 4px;
-            background: linear-gradient(to top, #ffd700, #ffec8b, #fff8dc);
-            border-radius: 2px;
-            transition: height 0.05s ease;
-            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-        }
-
         .snowflake {
             position: absolute;
             color: rgba(255, 255, 255, 0.3);
@@ -244,73 +218,16 @@
 
         // 主内容初始化（密码正确后才执行）
         let mainInitialized = false;
-        let audioContext, analyser, dataArray;
-        const barCount = 32;  // 频谱条数量
 
         function initMainContent() {
             if (mainInitialized) return;
             mainInitialized = true;
             // 触发 Three.js 初始化
             window.dispatchEvent(new Event('startApp'));
-            // 初始化音乐和可视化
-            initAudioVisualizer();
-        }
-
-        function initAudioVisualizer() {
+            // 播放背景音乐
             const bgm = document.getElementById('bgm');
-            const visualizer = document.getElementById('visualizer');
-
-            // 创建频谱条
-            for (let i = 0; i < barCount; i++) {
-                const bar = document.createElement('div');
-                bar.className = 'viz-bar';
-                bar.style.height = '2px';
-                visualizer.appendChild(bar);
-            }
-
-            try {
-                // 设置 Web Audio API
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 128;
-                analyser.smoothingTimeConstant = 0.8;
-
-                const source = audioContext.createMediaElementSource(bgm);
-                source.connect(analyser);
-                analyser.connect(audioContext.destination);
-
-                dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-                // 播放音乐
-                bgm.volume = 0.5;
-                bgm.play().then(() => {
-                    visualizer.classList.add('visible');
-                    updateVisualizer();
-                }).catch(() => {
-                    // 播放失败，隐藏可视化
-                    visualizer.style.display = 'none';
-                });
-            } catch (e) {
-                // Web Audio API 失败，只播放音乐不显示可视化
-                console.warn('音频可视化初始化失败:', e);
-                visualizer.style.display = 'none';
-                bgm.volume = 0.5;
-                bgm.play().catch(() => {});
-            }
-        }
-
-        function updateVisualizer() {
-            if (!analyser || !dataArray) return;
-            requestAnimationFrame(updateVisualizer);
-
-            analyser.getByteFrequencyData(dataArray);
-            const bars = document.querySelectorAll('.viz-bar');
-
-            for (let i = 0; i < barCount; i++) {
-                const value = dataArray[i];
-                const height = Math.max(2, (value / 255) * 60);
-                bars[i].style.height = height + 'px';
-            }
+            bgm.volume = 0.5;
+            bgm.play().catch(() => {});
         }
     </script>
 
@@ -333,9 +250,6 @@
     <audio id="bgm" loop preload="auto">
         <source src="music/bgm.mp3" type="audio/mpeg">
     </audio>
-
-    <!-- 音乐可视化 -->
-    <div id="visualizer"></div>
 
     <script type="module">
         import * as THREE from 'three';
@@ -495,6 +409,8 @@
             caneTexture.repeat.set(3, 3);
         }
 
+        let photoIndex = 0;  // 用于分配照片位置
+
         class Particle {
             constructor(mesh, type, isDust = false) {
                 this.mesh = mesh;
@@ -516,6 +432,7 @@
                     this.photoRotOffset = Math.random() * Math.PI * 2;  // 初始相位
                     this.photoTiltX = (Math.random() - 0.5) * 0.3;  // 轻微倾斜
                     this.photoTiltZ = (Math.random() - 0.5) * 0.3;
+                    this.photoIdx = photoIndex++;
                 }
 
                 this.calculatePositions();
@@ -524,14 +441,29 @@
             calculatePositions() {
                 const h = CONFIG.particles.treeHeight;
                 const halfH = h / 2;
-                let t = Math.random();
-                t = Math.pow(t, 0.8);
-                const y = (t * h) - halfH;
-                let rMax = CONFIG.particles.treeRadius * (1.0 - t);
-                if (rMax < 0.5) rMax = 0.5;
-                const angle = t * 50 * Math.PI + Math.random() * Math.PI;
-                const r = rMax * (0.8 + Math.random() * 0.4);
-                this.posTree.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+
+                // 照片使用均匀分布，避免重叠
+                if (this.type === 'PHOTO') {
+                    const totalPhotos = 8;
+                    // 均匀分布在树的中下部（避免顶部）
+                    const t = 0.15 + (this.photoIdx / totalPhotos) * 0.6;  // 0.15 到 0.75
+                    const y = (t * h) - halfH;
+                    // 更大的半径，确保照片在外围
+                    const rMax = CONFIG.particles.treeRadius * (1.0 - t) + 2;
+                    // 均匀分布角度
+                    const angle = (this.photoIdx / totalPhotos) * Math.PI * 2 + Math.PI / 4;
+                    const r = rMax * 0.9;
+                    this.posTree.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+                } else {
+                    let t = Math.random();
+                    t = Math.pow(t, 0.8);
+                    const y = (t * h) - halfH;
+                    let rMax = CONFIG.particles.treeRadius * (1.0 - t);
+                    if (rMax < 0.5) rMax = 0.5;
+                    const angle = t * 50 * Math.PI + Math.random() * Math.PI;
+                    const r = rMax * (0.8 + Math.random() * 0.4);
+                    this.posTree.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+                }
 
                 let rScatter = this.isDust ? (12 + Math.random()*20) : (8 + Math.random()*12);
                 const theta = Math.random() * Math.PI * 2;
